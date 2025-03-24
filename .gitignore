@@ -11,7 +11,7 @@ coverage/
 /e2e_tests/screenshots/
 /e2e_tests/videos/
 mvn/
-#dist/
+dist/
 NOTICE.xml
 *.tgz
 *.tar.gz
