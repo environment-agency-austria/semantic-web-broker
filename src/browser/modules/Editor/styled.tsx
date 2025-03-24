@@ -30,6 +30,7 @@ export const Header = styled.div`
   display: flex;
   border: ${props => props.theme.monacoEditorBorder};
   border-radius: 2px;
+  flex-wrap: wrap;
 `
 
 export const MainEditorWrapper = styled.div<FullscreenProps>`
@@ -66,7 +67,7 @@ export const EditorContainer = styled.div`
   flex-grow: 1;
   min-width: 0;
   width: 0; // needed to prevent the editor from growing the text field
-  min-width: 0;
+  min-width: 500px;
 
   /*  The monaco editor calculates width of the line number based on the max width of the digits 0-9 and no other characters.
       This causes the line number to sometime line-break, nowrap fixes this.

@@ -37,6 +37,7 @@ const shouldCheckForHints = (code: string) =>
 const MonacoStyleWrapper = styled.div`
   height: 100%;
   width: 100%;
+  font: 8px;
 
   .margin .margin-view-overlays {
     margin-left: 10px;
@@ -176,7 +177,7 @@ export class CypherEditor extends React.Component<
   private internalSetValue = (value: string): void => {
     if (!this.editor) return
     this.editor.setValue(value)
-    this.editor.focus()
+    // this.editor.focus()
 
     const lines = this.editor.getModel()?.getLinesContent() || []
     const linesLength = lines.length
@@ -334,12 +335,12 @@ export class CypherEditor extends React.Component<
       cursorStyle: 'block',
       fontFamily: '"Fira Code", Monaco, "Courier New", Terminal, monospace',
       fontLigatures: this.props.fontLigatures,
-      fontSize: 17,
+      fontSize: 10,
       fontWeight: '400',
       hideCursorInOverviewRuler: true,
       language: 'cypher',
       lightbulb: { enabled: false },
-      lineHeight: 23,
+      lineHeight: 12,
       lineNumbers: (line: number) =>
         this.isMultiLine() ? line.toString() : `${this.props.useDb || ''}$`,
       links: false,
@@ -464,6 +465,10 @@ export class CypherEditor extends React.Component<
   }
 
   componentDidUpdate(prevProps: CypherEditorProps): void {
+    if (prevProps.value != this.props.value) {
+      this.internalSetValue(this.props.value)
+    }
+
     const { useDb, fontLigatures, enableMultiStatementMode, tabIndex } =
       this.props
     if (fontLigatures !== prevProps.fontLigatures) {

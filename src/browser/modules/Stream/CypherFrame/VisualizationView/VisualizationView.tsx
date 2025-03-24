@@ -325,6 +325,7 @@ LIMIT ${maxNewNeighbours}`
       <StyledVisContainer isFullscreen={this.props.isFullscreen}>
         <div style={{ height: '50%' }}>
           <GraphVisualizer
+            result={this.props.result}
             maxNeighbours={this.props.maxNeighbours}
             hasTruncatedFields={this.state.hasTruncatedFields}
             graphStyleData={this.props.graphStyleData}

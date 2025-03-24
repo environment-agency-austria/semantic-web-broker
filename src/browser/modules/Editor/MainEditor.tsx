@@ -90,6 +90,9 @@ import {
   printShortcut
 } from 'browser/modules/App/keyboardShortcuts'
 import { KeyCode } from 'monaco-editor'
+import { Checkbox, Dropdown, Label, Select } from 'semantic-ui-react'
+import { StyledInput, StyledSelect } from 'browser-components/Form'
+import bolt from 'services/bolt/bolt'
 
 type EditorFrameProps = {
   bus: Bus
@@ -130,6 +133,10 @@ export function MainEditor({
     null
   )
   const editorRef = useRef<CypherEditor>(null)
+
+  const featureProperties = useEffect(() => {
+    //TODO: Populate combos here
+  }, [useDb])
 
   const toggleFullscreen = () => {
     setFullscreen(fs => !fs)
@@ -202,7 +209,7 @@ export function MainEditor({
   )
 
   function discardEditor() {
-    editorRef.current?.setValue('')
+    // editorRef.current?.setValue('')
     setCurrentlyEditing(null)
     setFullscreen(false)
   }
@@ -227,7 +234,7 @@ export function MainEditor({
   function createRunCommandFunction(source: string) {
     return () => {
       executeCommand(editorRef.current?.getValue() || '', source)
-      editorRef.current?.setValue('')
+      // editorRef.current?.setValue('')
       setCurrentlyEditing(null)
       setFullscreen(false)
     }
@@ -248,6 +255,123 @@ export function MainEditor({
     unsaved &&
     currentlyEditing &&
     !currentlyEditing?.isStatic
+  )
+
+  const featureTypePropMap = new Map<string, string[]>()
+  featureTypePropMap.set('bgl:FP_url_flaechenwidmung', [
+    'bgl:Bauland - Dorfgebiet (§ 14 Abs. 3 lit. b) (de)',
+    'bgl:Aufschließungsgebiet - Baugebiete für förderbaren Wohnbau (§ 14 Abs. 2)',
+    'bgl:Bauland  -  Sondergebiet (§33 Abs. 3 Z 8)',
+    'bgl:Bauland - Wohngebiet (§ 14 Abs. 3 lit. a)',
+    '	bgl:Bauland - Baugebiete für Erholungs- oder Tourismuseinrichtungen (§33 Abs. 3 Z 7)',
+    'bgl:Bauland - Industriegebiet (§ 14 Abs. 3 lit. d)',
+    'bgl:Bauland - Betriebsgebiet (§ 14 Abs. 3 lit. e)',
+    'bgl:Bauland - Gemischtes Baugebiet (§ 14 Abs. 3 lit. f)'
+  ])
+  featureTypePropMap.set('noe:FP_url_flaechenwidmung', [
+    'noe:Bauland-Sondergebiet',
+    'noe:Bauland Wohn- oder Mischnutzung',
+    'noe:Bauland-Kerngebiet Handelseinrichtungen',
+    'noe:Bauland Betriebsnutzung verkehrsbeschränkt',
+    '	noe:Bauland Betriebsnutzung'
+  ])
+  featureTypePropMap.set('ooe:FP_url_flaechenwidmung"', [
+    'ooe:Gebiet für Geschäftsbauten über 1500 m²  GVF',
+    'ooe:Gebiet für Geschäftsbauten über 300 m² und maximal 1500 m²  GVF',
+    'ooe:Gebiet für Geschäftsbauten mit kombinierter Widmung über 1500 m²  GVF',
+    'ooe:Gebiet für Geschäftsbauten mit kombinierter Widmung über 300 m² und maximal 1500 m²  GVF',
+    'ooe:Schutz- oder Pufferzone im Bauland',
+    'ooe:Gemischtes Baugebiet',
+    'ooe:Betriebsbaugebiet',
+    'ooe:Eingeschränktes gemischtes Baugebiet',
+    'ooe:Sondergebiete des Baulandes',
+    ''
+  ])
+
+  // <option key={"https://iqvoc-rest-gdi.agrarforschung.at/FP_url_flaechenwidmungskategorie"} value="https://iqvoc-rest-gdi.agrarforschung.at/FP_url_flaechenwidmungskategorie" label='bgl:FP_url_flaechenwidmung'/>
+  // <option key={"https://iqvoc-rest-gdi.agrarforschung.at/FP_url_flaechenwidmungskaetegorie_ooe"} value="https://iqvoc-rest-gdi.agrarforschung.at/FP_url_flaechenwidmungskaetegorie_ooe" label="ooe:FP_url_flaechenwidmung"/>
+  // <option key={"https://iqvoc-rest-gdi.agrarforschung.at/noe_FP_Flaechenwidmungkategorie"} value="https://iqvoc-rest-gdi.agrarforschung.at/noe_FP_Flaechenwidmungkategorie" label="noe:FP_url_flaechenwidmung"/>
+
+  const [featureProp, setFeatureProp] = useState<string>(
+    'https://iqvoc-rest-gdi.agrarforschung.at/FP_url_flaechenwidmungskategorie'
+  )
+  const [searchVal, setSearchVal] = useState<string>()
+  const [exactMatch, setExactMatch] = useState<boolean>(true)
+  const [closeMatch, setCloseMatch] = useState<boolean>(false)
+
+  const relProps =
+    exactMatch && closeMatch
+      ? 'exactMatch|closeMatch'
+      : exactMatch
+      ? 'exactMatch'
+      : closeMatch
+      ? 'closeMatch'
+      : ''
+  const generatedQuery =
+    !searchVal || !featureProp
+      ? ''
+      : `CALL {
+    match(n:Concept {prefLabel : '${searchVal}'})
+    RETURN n
+    UNION
+    match(o:Concept {prefLabel : '${searchVal}'})-[r:${relProps}*]->(n:Concept)<-[r2:member]-(c:Collection {prefLabel : 'Codelist Value'})
+    RETURN n
+}
+MATCH path=(x {prefLabel : 'xLink'})-[member]->(uri:Concept)-[uriWsRel:exactMatch]->(webService:Concept)-[wsFtRel:related]->(featureType:Concept)-[ftFpRel:related]-(featureProperty:Concept)-[fpClRel:related]-(codeList:Concept)-[]->(n)
+WHERE 
+    (webService)<-[:member]-(:Collection {prefLabel: 'Webservice Endpoint'})
+    AND
+    (featureType)<-[:member]-(:Collection {prefLabel: 'Feature Type'})
+    AND
+    (featureProperty)<-[:member]-(:Collection {prefLabel: 'Feature Property'})
+    AND
+    (codeList)<-[:member]-(:Collection {prefLabel: 'Codelist'})
+RETURN n, nodes(path), fpClRel, featureProperty, ftFpRel, featureType, wsFtRel, webService, uriWsRel, uri
+`
+
+  const editor = (
+    <CypherEditor
+      value={generatedQuery}
+      enableMultiStatementMode={false}
+      fontLigatures={codeFontLigatures}
+      history={history}
+      id={'main-editor'}
+      isFullscreen={isFullscreen}
+      onChange={() => {
+        setUnsaved(true)
+      }}
+      onDisplayHelpKeys={() =>
+        executeCommand(':help keys', commandSources.editor)
+      }
+      onExecute={createRunCommandFunction(commandSources.editor)}
+      ref={editorRef}
+      additionalCommands={{
+        [KeyCode.Escape]: {
+          handler: toggleFullscreen,
+          context: '!suggestWidgetVisible && !findWidgetVisible'
+        }
+      }}
+      useDb={useDb}
+      sendCypherQuery={(text: string) =>
+        new Promise((res, rej) =>
+          bus.self(
+            CYPHER_REQUEST,
+            {
+              query: text,
+              queryType: NEO4J_BROWSER_USER_ACTION_QUERY,
+              params: applyParamGraphTypes(params)
+            },
+            (response: { result: QueryResult; success?: boolean }) => {
+              if (response.success === true) {
+                res(response.result)
+              } else {
+                rej(response.result)
+              }
+            }
+          )
+        )
+      }
+    />
   )
 
   return (
@@ -271,49 +395,61 @@ export function MainEditor({
       )}
       <FlexContainer>
         <Header>
-          <EditorContainer>
-            <CypherEditor
-              enableMultiStatementMode={enableMultiStatementMode}
-              fontLigatures={codeFontLigatures}
-              history={history}
-              id={'main-editor'}
-              isFullscreen={isFullscreen}
-              onChange={() => {
-                setUnsaved(true)
+          <div style={{ flexBasis: '100%' }}>
+            Feature-Property:
+            <StyledSelect
+              value={featureProp}
+              onChange={e => {
+                setFeatureProp(e.target.value)
+                // udpateEditorQuery();
               }}
-              onDisplayHelpKeys={() =>
-                executeCommand(':help keys', commandSources.editor)
-              }
-              onExecute={createRunCommandFunction(commandSources.editor)}
-              ref={editorRef}
-              additionalCommands={{
-                [KeyCode.Escape]: {
-                  handler: toggleFullscreen,
-                  context: '!suggestWidgetVisible && !findWidgetVisible'
+            >
+              <option
+                key={
+                  'https://iqvoc-rest-gdi.agrarforschung.at/FP_url_flaechenwidmungskategorie'
                 }
+                value="https://iqvoc-rest-gdi.agrarforschung.at/FP_url_flaechenwidmungskategorie"
+                label="bgl:FP_url_flaechenwidmung"
+              />
+              <option
+                key={
+                  'https://iqvoc-rest-gdi.agrarforschung.at/FP_url_flaechenwidmungskaetegorie_ooe'
+                }
+                value="https://iqvoc-rest-gdi.agrarforschung.at/FP_url_flaechenwidmungskaetegorie_ooe"
+                label="ooe:FP_url_flaechenwidmung"
+              />
+              <option
+                key={
+                  'https://iqvoc-rest-gdi.agrarforschung.at/noe_FP_Flaechenwidmungkategorie'
+                }
+                value="https://iqvoc-rest-gdi.agrarforschung.at/noe_FP_Flaechenwidmungkategorie"
+                label="noe:FP_url_flaechenwidmung"
+              />
+            </StyledSelect>
+            Codelist-Value:
+            <StyledInput
+              type="text"
+              onChange={e => setSearchVal(e.target.value)}
+            ></StyledInput>
+            <StyledInput
+              id="exactMatch"
+              type="checkbox"
+              defaultChecked={exactMatch}
+              onChange={e => {
+                setExactMatch(e.target.checked)
               }}
-              useDb={useDb}
-              sendCypherQuery={(text: string) =>
-                new Promise((res, rej) =>
-                  bus.self(
-                    CYPHER_REQUEST,
-                    {
-                      query: text,
-                      queryType: NEO4J_BROWSER_USER_ACTION_QUERY,
-                      params: applyParamGraphTypes(params)
-                    },
-                    (response: { result: QueryResult; success?: boolean }) => {
-                      if (response.success === true) {
-                        res(response.result)
-                      } else {
-                        rej(response.result)
-                      }
-                    }
-                  )
-                )
-              }
             />
-          </EditorContainer>
+            <label htmlFor="exactMatch">exactMatch</label>
+            <StyledInput
+              id="closeMatch"
+              type="checkbox"
+              defaultChecked={closeMatch}
+              onChange={e => setCloseMatch(e.target.checked)}
+            />
+            <label htmlFor="closeMatch">closeMatch</label>
+          </div>
+
+          <EditorContainer>{editor}</EditorContainer>
           {currentlyEditing && !currentlyEditing.isStatic && (
             <StyledEditorButton
               data-testid="editor-Favorite"

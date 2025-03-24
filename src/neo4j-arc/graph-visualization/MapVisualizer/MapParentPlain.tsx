@@ -45,15 +45,17 @@ import {
 } from './SelectLayer'
 import { selectNodeById } from './map_to_graph'
 import { RelationshipModel } from '../models/Relationship'
+import { FeatureLike } from 'ol/Feature'
 
 export type MapParentPlainProps = {
   mapPosition: [number, number]
-  syncGraphWithMap(zoom: number, zoomDetailLevel: number, bounds: any): void
+  // syncGraphWithMap(zoom: number, zoomDetailLevel: number, bounds: any): void
   selectedItem: VizItem
   graph?: GraphModel
   geh?: GraphEventHandlerModel
   auStyle: 'bundeslaender' | 'bezirke' | 'gemeinden'
-  syncWithGraph: boolean
+  // syncWithGraph: boolean
+  content: Map<string, { uri: string; attrs: Map<string, Set<string>> }>
 }
 
 export function MapParentPlain(props: MapParentPlainProps) {
@@ -82,21 +84,21 @@ export function MapParentPlain(props: MapParentPlainProps) {
 
   // sync react props with map state (visible features & selection)
   if (map) {
-    syncSelectLayer(
-      map,
-      featureCache.current,
-      selection.current,
-      forceUpdate,
-      props.selectedItem
-    )
-    syncVectorLayer(
-      map,
-      featureCache.current,
-      visibleFeatures.current,
-      props.syncWithGraph,
-      forceUpdate,
-      props.graph
-    )
+    // syncSelectLayer(
+    //   map,
+    //   featureCache.current,
+    //   selection.current,
+    //   forceUpdate,
+    //   props.selectedItem
+    // )
+    // syncVectorLayer(
+    //   map,
+    //   featureCache.current,
+    //   visibleFeatures.current,
+    //   props.syncWithGraph,
+    //   forceUpdate,
+    //   props.graph
+    // )
   }
 
   useEffect(() => {
@@ -140,113 +142,188 @@ export function MapParentPlain(props: MapParentPlainProps) {
         view.getProjection(),
         'EPSG:3035'
       )
-      props.syncGraphWithMap(zoom, 10, extentTransformed)
+      // props.syncGraphWithMap(zoom, 10, extentTransformed)
     })
 
-    map.on('singleclick', e => {
-      if (currentProps.current.graph && currentProps.current.geh) {
-        const featureSelected = (node: NodeModel) => {
-          lastMapSelectedNode.current = node
-          forceUpdate()
-        }
+    // map.on('singleclick', e => {
+    //   if (currentProps.current.graph && currentProps.current.geh) {
+    //     const featureSelected = (node: NodeModel) => {
+    //       lastMapSelectedNode.current = node
+    //       forceUpdate()
+    //     }
 
-        handleSelectClick(
-          e,
-          featureCache.current,
-          psLayer.current,
-          forceUpdate,
-          vectorLayer,
-          currentProps.current.graph,
-          currentProps.current.geh,
-          featureSelected
-        )
-      }
-    })
+    //     handleSelectClick(
+    //       e,
+    //       featureCache.current,
+    //       psLayer.current,
+    //       forceUpdate,
+    //       vectorLayer,
+    //       currentProps.current.graph,
+    //       currentProps.current.geh,
+    //       featureSelected
+    //     )
+    //   }
+    // })
 
     map.setTarget(mapTargetElement.current || '')
     setMap(map)
     return () => map.setTarget('')
   }, [])
 
-  useEffect(() => {
-    if (auLayer) {
-      map?.removeLayer(auLayer)
-    }
+  // useEffect(() => {
+  //   if (auLayer) {
+  //     map?.removeLayer(auLayer)
+  //   }
 
-    const newAuLayer = new TileLayer({
-      source: new TileWMS({
-        url: 'https://geoserver-admin.rest-gdi.geo-data.space/geoserver/au/wms?service=WMS',
-        params: {
-          LAYERS: 'au:AdministrativUnits',
-          TILED: true,
-          STYLES: props.auStyle,
-          VERSION: '1.1.1'
-        },
-        projection: 'EPSG:3035',
-        serverType: 'geoserver',
-        transition: 0
-      })
-    })
+  //   const newAuLayer = new TileLayer({
+  //     source: new TileWMS({
+  //       url: 'https://geoserver-admin.rest-gdi.geo-data.space/geoserver/au/wms?service=WMS',
+  //       params: {
+  //         LAYERS: 'au:AdministrativUnits',
+  //         TILED: true,
+  //         STYLES: props.auStyle,
+  //         VERSION: '1.1.1'
+  //       },
+  //       projection: 'EPSG:3035',
+  //       serverType: 'geoserver',
+  //       transition: 0
+  //     })
+  //   })
 
-    setAuLayer(newAuLayer)
-    map?.addLayer(newAuLayer)
-  }, [props.auStyle, map])
+  //   setAuLayer(newAuLayer)
+  //   map?.addLayer(newAuLayer)
+  // }, [props.auStyle, map])
 
-  const psLayer = useRef<TileLayer<TileWMS> | null>(null)
+  // const psLayer = useRef<TileLayer<TileWMS> | null>(null)
+  // useEffect(() => {
+  //   if (map) {
+  //     if (props.syncWithGraph) {
+  //       if (psLayer.current) {
+  //         map.removeLayer(psLayer.current)
+  //         psLayer.current = null
+  //       }
+  //     } else {
+  //       psLayer.current = new TileLayer({
+  //         source: new TileWMS({
+  //           url: 'https://geoserver-admin.rest-gdi.geo-data.space/geoserver/ps/wms?service=WMS',
+  //           params: {
+  //             LAYERS: 'ps:ProtectedSite',
+  //             TILED: true,
+  //             VERSION: '1.1.1'
+  //           },
+  //           serverType: 'geoserver',
+  //           transition: 0
+  //         }),
+  //         zIndex: 1
+  //       })
+
+  //       map.addLayer(psLayer.current)
+  //     }
+  //   }
+  // }, [props.syncWithGraph, props.syncGraphWithMap, map])
+
+  const layerURLs = useRef<{ name: string; url: string }[]>([])
+  const layers = useRef<VectorLayer<VectorSource<Geometry>>[]>([])
   useEffect(() => {
     if (map) {
-      if (props.syncWithGraph) {
-        if (psLayer.current) {
-          map.removeLayer(psLayer.current)
-          psLayer.current = null
-        }
-      } else {
-        psLayer.current = new TileLayer({
-          source: new TileWMS({
-            url: 'https://geoserver-admin.rest-gdi.geo-data.space/geoserver/ps/wms?service=WMS',
-            params: {
-              LAYERS: 'ps:ProtectedSite',
-              TILED: true,
-              VERSION: '1.1.1'
-            },
-            serverType: 'geoserver',
-            transition: 0
-          }),
-          zIndex: 1
+      const newLayerURLs: { name: string; url: string }[] = []
+
+      props.content.forEach((featureType, key) => {
+        const layerName = key //key.substring(key.lastIndexOf("/") + 1);
+
+        const attrFilters: string[] = []
+        featureType.attrs.forEach((attrs, featureProperty) => {
+          const featurePropertyName = featureProperty.substring(
+            featureProperty.lastIndexOf(':') + 1
+          )
+          const literalsJoined = Array.from(attrs)
+            .map(
+              attr =>
+                `<PropertyIsEqualTo><PropertyName>${featurePropertyName}</PropertyName><Literal>${attr}</Literal></PropertyIsEqualTo>`
+            )
+            .join(' ')
+          const featurePropFilter =
+            attrs.size > 1 ? `<Or>${literalsJoined}</Or>` : literalsJoined
+          attrFilters.push(featurePropFilter)
         })
 
-        map.addLayer(psLayer.current)
+        let attrFiltersCombined = attrFilters.join(' ')
+        if (attrFilters.length > 1) {
+          attrFiltersCombined = '<And>' + attrFiltersCombined + '</And>'
+        }
+
+        const ocgFilters = '<Filter>' + attrFiltersCombined + '</Filter>'
+
+        const layerURL = `${
+          featureType.uri
+        }?service=WFS&version=1.1.0&request=GetFeature&typename=${encodeURI(
+          layerName
+        )}&outputFormat=application/json&filter=${encodeURI(ocgFilters)}`
+        newLayerURLs.push({ name: layerName, url: layerURL })
+      })
+
+      newLayerURLs.sort((u1, u2) => u1.name.localeCompare(u2.name))
+
+      // property change detection
+      if (
+        !layerURLs.current ||
+        JSON.stringify(layerURLs.current) !== JSON.stringify(newLayerURLs)
+      ) {
+        layers.current.forEach(oldLayer => map.removeLayer(oldLayer))
+        layers.current.length = 0
+
+        for (const newLayerURL of newLayerURLs) {
+          const newLayer = new VectorLayer({
+            source: new VectorSource({
+              url: newLayerURL.url,
+              format: new GeoJSON()
+            })
+          })
+          layers.current.push(newLayer)
+          map.addLayer(newLayer)
+        }
+
+        layerURLs.current = newLayerURLs
       }
     }
-  }, [props.syncWithGraph, props.syncGraphWithMap, map])
+  }, [map, props.content]) //TODO
 
-  useEffect(() => {
-    const selItem = currentProps.current.selectedItem
-    if (map && selItem && selItem.type === 'node') {
-      const node = selItem.item as NodeModel
+  const layerLinks = layerURLs.current.map(url => (
+    <>
+      <a key={url.name} target="_blank" rel="noreferrer" href={url.url}>
+        {url.name}
+      </a>{' '}
+    </>
+  ))
 
-      if (node !== lastMapSelectedNode.current) {
-        const bbox = [
-          parseInt(node.propertyMap['x_min']),
-          parseInt(node.propertyMap['y_min']),
-          parseInt(node.propertyMap['x_max']),
-          parseInt(node.propertyMap['y_max'])
-        ]
-        const center = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]
+  // useEffect(() => {
+  //   const selItem = currentProps.current.selectedItem
+  //   if (map && selItem && selItem.type === 'node') {
+  //     const node = selItem.item as NodeModel
 
-        const centerView = olProj.transform(
-          center,
-          'EPSG:3035',
-          map.getView().getProjection()
-        )
+  //     if (node !== lastMapSelectedNode.current) {
+  //       const bbox = [
+  //         parseInt(node.propertyMap['x_min']),
+  //         parseInt(node.propertyMap['y_min']),
+  //         parseInt(node.propertyMap['x_max']),
+  //         parseInt(node.propertyMap['y_max'])
+  //       ]
+  //       const center = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]
 
-        map.getView().setCenter(centerView)
-      }
-    }
-  }, [props.syncWithGraph, props.syncGraphWithMap, props.selectedItem])
+  //       const centerView = olProj.transform(
+  //         center,
+  //         'EPSG:3035',
+  //         map.getView().getProjection()
+  //       )
+
+  //       map.getView().setCenter(centerView)
+  //     }
+  //   }
+  // }, [props.syncWithGraph, props.syncGraphWithMap, props.selectedItem])
 
   return (
     <>
+      <>Links: {layerLinks}</>
       <div
         ref={mapTargetElement}
         className="map"
@@ -268,6 +345,14 @@ function registerProjections() {
   proj4.defs(
     'EPSG:31258',
     '+proj=tmerc +lat_0=0 +lon_0=13.3333333333333 +k=1 +x_0=450000 +y_0=-5000000 +ellps=bessel +towgs84=577.326,90.129,463.919,5.137,1.474,5.297,2.4232 +units=m +no_defs +type=crs'
+  )
+  proj4.defs(
+    'EPSG:31255',
+    '+proj=tmerc +lat_0=0 +lon_0=13.3333333333333 +k=1 +x_0=0 +y_0=-5000000 +ellps=bessel +towgs84=577.326,90.129,463.919,5.137,1.474,5.297,2.4232 +units=m +no_defs +type=crs'
+  )
+  proj4.defs(
+    'EPSG:31259',
+    '+proj=tmerc +lat_0=0 +lon_0=16.3333333333333 +k=1 +x_0=750000 +y_0=-5000000 +ellps=bessel +towgs84=577.326,90.129,463.919,5.137,1.474,5.297,2.4232 +units=m +no_defs +type=crs'
   )
   proj4.defs(
     'EPSG:3035',

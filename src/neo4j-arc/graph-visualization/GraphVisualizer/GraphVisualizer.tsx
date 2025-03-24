@@ -59,10 +59,14 @@ import {
   setGraphNodes
 } from '../MapVisualizer/map_to_graph'
 import { MapParentPlain } from '../MapVisualizer/MapParentPlain'
+import { Node, QueryResult, Record } from 'neo4j-driver-core'
+import { Dict } from 'neo4j-driver-core/types/record'
+import VectorLayer from 'ol/layer/Vector'
 
 const DEFAULT_MAX_NEIGHBOURS = 100
 
 type GraphVisualizerDefaultProps = {
+  result?: QueryResult
   maxNeighbours: number
   updateStyle: (style: any) => void
   isFullscreen: boolean
@@ -163,7 +167,8 @@ export class GraphVisualizer extends Component<
       nodeLimitHit,
       nodes,
       relationships,
-      nodePropertiesExpandedByDefault
+      nodePropertiesExpandedByDefault,
+      result
     } = this.props
 
     const selectedItem: VizItem = nodeLimitHit
@@ -300,72 +305,72 @@ export class GraphVisualizer extends Component<
     this.geh = handler
   }
 
-  syncOptionsChanged = (syncWithMapBound: boolean, syncWithGraph: boolean) => {
-    if (syncWithMapBound && this.state.mapGraph) {
-      //restore graph based on what was fetched for map before
-      setGraphNodes(this.state.mapGraph, this.g, this.geh)
-    }
+  // syncOptionsChanged = (syncWithMapBound: boolean, syncWithGraph: boolean) => {
+  //   if (syncWithMapBound && this.state.mapGraph) {
+  //     //restore graph based on what was fetched for map before
+  //     setGraphNodes(this.state.mapGraph, this.g, this.geh)
+  //   }
 
-    if (syncWithGraph) {
-      this.syncMapWithGraph()
-    }
+  //   if (syncWithGraph) {
+  //     this.syncMapWithGraph()
+  //   }
 
-    this.setState(prev => ({
-      ...prev,
-      syncWithMap: syncWithMapBound,
-      syncWithGraph: syncWithGraph
-    }))
-  }
+  //   this.setState(prev => ({
+  //     ...prev,
+  //     syncWithMap: syncWithMapBound,
+  //     syncWithGraph: syncWithGraph
+  //   }))
+  // }
 
-  syncGraphWithMap = (zoom: number, zoomDetailLevel: number, bounds: any) => {
-    if (!this.state.syncWithMap) {
-      return
-    }
+  // syncGraphWithMap = (zoom: number, zoomDetailLevel: number, bounds: any) => {
+  //   if (!this.state.syncWithMap) {
+  //     return
+  //   }
 
-    //console.log(zoom + zoomDetailLevel)
+  //   //console.log(zoom + zoomDetailLevel)
 
-    // wenn grob, keine Daten laden (nur für getFeatureInfo)
-    if (zoom < zoomDetailLevel) {
-      setGraphNodes({ nodes: [], relationships: [] }, this.g, this.geh)
-      return
-    }
+  //   // wenn grob, keine Daten laden (nur für getFeatureInfo)
+  //   if (zoom < zoomDetailLevel) {
+  //     setGraphNodes({ nodes: [], relationships: [] }, this.g, this.geh)
+  //     return
+  //   }
 
-    const query = generateNodeBoundsQuery(bounds)
-    console.log(query)
-    this.props.updateQuery?.(query).then(resultGraph => {
-      const nodeInfo = convertBasicNodesToGeoNodeInfo(resultGraph.nodes)
-      const loadedLayers = Array.from(
-        new Set(nodeInfo.flatMap(ni => ni.layers))
-      ).sort()
+  //   const query = generateNodeBoundsQuery(bounds)
+  //   console.log(query)
+  //   this.props.updateQuery?.(query).then(resultGraph => {
+  //     const nodeInfo = convertBasicNodesToGeoNodeInfo(resultGraph.nodes)
+  //     const loadedLayers = Array.from(
+  //       new Set(nodeInfo.flatMap(ni => ni.layers))
+  //     ).sort()
 
-      this.setState({
-        nodes: resultGraph.nodes,
-        mapGraph: resultGraph,
-        nodeURLs: nodeInfo
-        //loadedLayers: loadedLayers
-      })
+  //     this.setState({
+  //       nodes: resultGraph.nodes,
+  //       mapGraph: resultGraph,
+  //       nodeURLs: nodeInfo
+  //       //loadedLayers: loadedLayers
+  //     })
 
-      console.log('number of nodes returned: ' + resultGraph.nodes.length)
-      if (this.state.syncWithMap) {
-        setGraphNodes(resultGraph, this.g, this.geh)
-      }
-    })
-  }
+  //     console.log('number of nodes returned: ' + resultGraph.nodes.length)
+  //     if (this.state.syncWithMap) {
+  //       setGraphNodes(resultGraph, this.g, this.geh)
+  //     }
+  //   })
+  // }
 
-  syncMapWithGraph = () => {
-    if (this.g) {
-      console.log('nodes there: ' + this.g?.nodes().length)
+  // syncMapWithGraph = () => {
+  //   if (this.g) {
+  //     console.log('nodes there: ' + this.g?.nodes().length)
 
-      const urlList = this.g
-        ?.nodes()
-        .filter(n => n.propertyMap['gml:identifier'])
-        .map(n => ({ url: n.propertyMap['gml:identifier'], layers: n.labels }))
+  //     const urlList = this.g
+  //       ?.nodes()
+  //       .filter(n => n.propertyMap['gml:identifier'])
+  //       .map(n => ({ url: n.propertyMap['gml:identifier'], layers: n.labels }))
 
-      if (JSON.stringify(urlList) !== JSON.stringify(this.state.nodeURLs)) {
-        this.setState({ nodeURLs: urlList })
-      }
-    }
-  }
+  //     if (JSON.stringify(urlList) !== JSON.stringify(this.state.nodeURLs)) {
+  //       this.setState({ nodeURLs: urlList })
+  //     }
+  //   }
+  // }
 
   hiddenLayersChanged = (layers: string[]) => {
     this.setState({ hiddenLayers: layers })
@@ -386,8 +391,61 @@ export class GraphVisualizer extends Component<
       : this.state.graphStyle
 
     if (this.state.syncWithGraph) {
-      this.syncMapWithGraph()
+      // this.syncMapWithGraph()
     }
+
+    //{propertyName : string, propertyValue : string}[]
+
+    const getRecordProperty = (
+      rec: Record<Dict, PropertyKey, Dict<PropertyKey, number>>,
+      nodeName: string,
+      propertyName: string
+    ) => {
+      return (rec.get(nodeName) as Node).properties[propertyName]
+    }
+
+    const featureTypeMap: Map<
+      string,
+      { uri: string; attrs: Map<string, Set<string>> }
+    > = new Map()
+
+    const records = this.props.result?.records
+    if (records) {
+      for (const rec of records) {
+        const featureType = getRecordProperty(rec, 'featureType', 'prefLabel') //(rec.get("featureType") as Node).properties["prefLabel"];
+        const featureProperty = getRecordProperty(
+          rec,
+          'featureProperty',
+          'prefLabel'
+        ) //(rec.get("featureProperty") as Node).properties["prefLabel"];
+        const uri = getRecordProperty(rec, 'uri', 'prefLabel') //(rec.get("uri") as Node).properties["prefLabel"];
+
+        const codeListNodes = (rec.get('nodes(path)') as Node[]).slice(6)
+
+        let attrMap: Map<string, Set<string>> | undefined =
+          featureTypeMap.get(featureType)?.attrs
+        if (!attrMap) {
+          attrMap = new Map()
+          featureTypeMap.set(featureType, {
+            uri: uri,
+            attrs: attrMap
+          })
+        }
+
+        for (const codeListNode of codeListNodes) {
+          if (!attrMap.has(featureProperty)) {
+            attrMap.set(featureProperty, new Set())
+          }
+
+          const valueSet = attrMap.get(featureProperty) as Set<string>
+
+          const nodeValue = codeListNode.properties['uri'] as string
+          valueSet.add(nodeValue)
+        }
+      }
+    }
+
+    console.log(JSON.stringify(featureTypeMap))
 
     //const nodeURLs = this.convertBasicNodesToURL(this.state.nodes)
 
@@ -412,13 +470,13 @@ export class GraphVisualizer extends Component<
     return (
       <StyledFullSizeContainer id="svg-vis">
         <div style={{ position: 'absolute', top: '30px', zIndex: 1000 }}>
-          <SyncPanel
+          {/* <SyncPanel
             syncWithMapBounds={this.state.syncWithMap}
             syncWithGraph={this.state.syncWithGraph}
             syncOptionsChanged={this.syncOptionsChanged}
             layers={this.state.loadedLayers}
             layerChanged={this.visibleLayersChanged}
-          />
+          /> */}
         </div>
 
         <Graph
@@ -452,8 +510,9 @@ export class GraphVisualizer extends Component<
           graph={this.g}
           geh={this.geh}
           auStyle={this.state.layer ?? 'gemeinden'}
-          syncGraphWithMap={this.syncGraphWithMap}
-          syncWithGraph={this.state.syncWithGraph}
+          // syncGraphWithMap={this.syncGraphWithMap}
+          // syncWithGraph={this.state.syncWithGraph}
+          content={featureTypeMap}
         ></MapParentPlain>
 
         <NodeInspectorPanel
