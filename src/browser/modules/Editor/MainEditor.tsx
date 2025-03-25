@@ -317,7 +317,7 @@ export function MainEditor({
     match(o:Concept {prefLabel : '${searchVal}'})-[r:${relProps}*]->(n:Concept)<-[r2:member]-(c:Collection {prefLabel : 'Codelist Value'})
     RETURN n
 }
-MATCH path=(x {prefLabel : 'xLink'})-[member]->(uri:Concept)-[uriWsRel:exactMatch]->(webService:Concept)-[wsFtRel:related]->(featureType:Concept)-[ftFpRel:related]-(featureProperty:Concept)-[fpClRel:related]-(codeList:Concept)-[]->(n)
+MATCH path=(x {prefLabel : 'xLink'})-[member]->(uri:Concept)-[uriWsRel:exactMatch]->(webService:Concept)-[wsFtRel:related]->(featureType:Concept)-[ftFpRel:related]-(featureProperty:Concept)-[fpClRel:related]-(codeList:Concept)<-[br:broader]-(n)
 WHERE 
     (webService)<-[:member]-(:Collection {prefLabel: 'Webservice Endpoint'})
     AND
